@@ -6,7 +6,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
 
-# Page config
+# 1. Page Config (Must be the very first Streamlit command)
 st.set_page_config(
     page_title="Luxury Interiors",
     page_icon="🏠",
@@ -14,10 +14,10 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for Luxury Interior Design Theme
+# 2. Custom CSS for Luxury Interior Design Theme
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Inter:wght@300;400;500&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght=400;700&family=Inter:wght=300;400;500&display=swap');
     
     .main-header {
         background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
@@ -69,25 +69,6 @@ st.markdown("""
         box-shadow: 0 8px 20px rgba(255,215,0,0.3);
     }
     
-    .add-to-cart-btn {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border: none;
-        padding: 15px 30px;
-        border-radius: 50px;
-        font-size: 1.1rem;
-        font-weight: 500;
-        cursor: pointer;
-        transition: all 0.3s;
-        width: 100%;
-        margin-top: 1rem;
-    }
-    
-    .add-to-cart-btn:hover {
-        transform: scale(1.05);
-        box-shadow: 0 15px 30px rgba(102,126,234,0.4);
-    }
-    
     .metric-container {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         padding: 2rem;
@@ -108,7 +89,75 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Load products
+# 3. Helper Functions (Defined first so they can be called down below safely)
+def add_to_cart(product):
+    cart_item = next((item for item in st.session_state.cart if item['id'] == product['id']), None)
+    if cart_item:
+        cart_item['quantity'] += 1
+    else:
+        st.session_state.cart.append({'id': product['id'], **product, 'quantity': 1})
+    st.session_state.total = sum(item['price'] * item['quantity'] for item in st.session_state.cart)
+
+def display_products(products_list):
+    for product in products_list:
+        with st.container():
+            col1, col2, col3 = st.columns([1, 3, 1])
+            with col1:
+                st.markdown(f"### {product['image']}")
+            with col2:
+                st.markdown(f"""
+                    <div class="product-card">
+                        <h3>{product['name']}</h3>
+                        <p><strong>In Stock:</strong> {product['stock']} units</p>
+                    </div>
+                """, unsafe_allow_html=True)
+            with col3:
+                st.markdown(f"""
+                    <div class="price-tag">${product['price']:,.2f}</div>
+                """, unsafe_allow_html=True)
+            
+            if st.button(f"🛒 Add to Cart", key=f"add_{product['id']}"):
+                add_to_cart(product)
+                st.toast(f"✅ Added {product['name']} to cart!")
+                st.rerun()
+
+def display_cart():
+    for i, item in enumerate(st.session_state.cart):
+        col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
+        with col1:
+            st.write(f"**{item['name']}**")
+        with col2:
+            st.write(f"Qty: {item['quantity']}")
+        with col3:
+            st.write(f"${item['price']:,.2f}")
+        with col4:
+            st.write(f"${(item['price'] * item['quantity']):,.2f}")
+            if st.button("❌", key=f"remove_{i}"):
+                st.session_state.cart.pop(i)
+                st.session_state.total = sum(item['price'] * item['quantity'] for item in st.session_state.cart)
+                st.rerun()
+
+def complete_order():
+    st.session_state.cart = []
+    st.session_state.total = 0
+    st.balloons()
+
+def show_dashboard(products_list):
+    df = pd.DataFrame(products_list)
+    fig = px.scatter(df, x='price', y='stock', size='price', 
+                    color='category', hover_name='name',
+                    title="Product Analytics")
+    st.plotly_chart(fig, use_container_width=True)
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        fig_pie = px.pie(df, names='category', values='stock', title="Stock Distribution")
+        st.plotly_chart(fig_pie, use_container_width=True)
+    with col2:
+        fig_bar = px.bar(df, x='category', y='price', title="Avg Price by Category")
+        st.plotly_chart(fig_bar, use_container_width=True)
+
+# 4. Data Loading
 @st.cache_data
 def load_products():
     products_data = {
@@ -142,15 +191,13 @@ def load_products():
 
 products = load_products()
 
-# Session state
+# 5. Session State Initialization
 if 'cart' not in st.session_state:
     st.session_state.cart = []
 if 'total' not in st.session_state:
     st.session_state.total = 0
-if 'selected' not in st.session_state:
-    st.session_state.selected = "catalog"
 
-# Sidebar Navigation
+# 6. Sidebar Navigation Customization
 with st.sidebar:
     st.markdown("## 🏠 Luxury Interiors")
     selected = option_menu(
@@ -166,7 +213,7 @@ with st.sidebar:
         }
     )
 
-# Header
+# 7. Header Display Layout
 st.markdown("""
     <div class="main-header">
         <h1 class="luxury-title">Luxury Interiors</h1>
@@ -174,98 +221,48 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# Metrics
+# 8. Interactive KPI Statistics Dashboards 
 col1, col2, col3, col4 = st.columns(4)
 with col1:
-    st.markdown(
-        """
-        <div class="metric-container">
-            <div class="stMetric">
-                <label>Total Products</label>
-                <div>{}</div>
-            </div>
-        </div>
-        """.format(len(products)),
-        unsafe_allow_html=True
-    )
+    st.markdown(f'<div class="metric-container"><div class="stMetric"><label>Total Products</label><div>{len(products)}</div></div></div>', unsafe_allow_html=True)
 with col2:
-    st.markdown(
-        """
-        <div class="metric-container">
-            <div class="stMetric">
-                <label>Cart Items</label>
-                <div>{}</div>
-            </div>
-        </div>
-        """.format(len(st.session_state.cart)),
-        unsafe_allow_html=True
-    )
+    st.markdown(f'<div class="metric-container"><div class="stMetric"><label>Cart Items</label><div>{len(st.session_state.cart)}</div></div></div>', unsafe_allow_html=True)
 with col3:
-    st.markdown(
-        """
-        <div class="metric-container">
-            <div class="stMetric">
-                <label>Order Total</label>
-                <div>${:,.2f}</div>
-            </div>
-        </div>
-        """.format(st.session_state.total),
-        unsafe_allow_html=True
-    )
+    st.markdown(f'<div class="metric-container"><div class="stMetric"><label>Order Total</label><div>${st.session_state.total:,.2f}</div></div></div>', unsafe_allow_html=True)
 with col4:
     total_stock = sum(p['stock'] for p in products)
-    st.markdown(
-        """
-        <div class="metric-container">
-            <div class="stMetric">
-                <label>In Stock</label>
-                <div>{}</div>
-            </div>
-        </div>
-        """.format(total_stock),
-        unsafe_allow_html=True
-    )
+    st.markdown(f'<div class="metric-container"><div class="stMetric"><label>In Stock</label><div>{total_stock}</div></div></div>', unsafe_allow_html=True)
 
-# Page Content
+st.markdown("---")
+
+# 9. App Application Routing Setup
 if selected == "🏠 Catalog":
     st.header("✨ Premium Collection")
     
-    # Filters
-    col1, col2 = st.columns([2, 1])
-    with col1:
+    col_s, col_p = st.columns([2, 1])
+    with col_s:
         search = st.text_input("🔍 Search products...", key="search")
-    with col2:
+    with col_p:
         price_range = st.slider("💰 Price Range", 0, 5000, (0, 5000), key="price_range")
     
-    # Filter products
     filtered_products = [
         p for p in products 
         if (not search or search.lower() in p['name'].lower()) and 
            price_range[0] <= p['price'] <= price_range[1]
     ]
     
-    # Category tabs
     tab1, tab2, tab3, tab4, tab5 = st.tabs(["🛋️ Sofas", "☕ Tables", "🪑 Chairs", "💡 Lighting", "🎨 Decor"])
     
     with tab1:
-        sofas = [p for p in filtered_products if p['category'] == 'sofas']
-        display_products(sofas)
-    
+        display_products([p for p in filtered_products if p['category'] == 'sofas'])
     with tab2:
-        tables = [p for p in filtered_products if p['category'] == 'tables']
-        display_products(tables)
-    
+        display_products([p for p in filtered_products if p['category'] == 'tables'])
     with tab3:
-        chairs = [p for p in filtered_products if p['category'] == 'chairs']
-        display_products(chairs)
-    
+        display_products([p for p in filtered_products if p['category'] == 'chairs'])
     with tab4:
-        lighting = [p for p in filtered_products if p['category'] == 'lighting']
-        display_products(lighting)
-    
+        display_products([p for p in filtered_products if p['category'] == 'lighting'])
     with tab5:
-        decor = [p for p in filtered_products if p['category'] == 'decor']
-        display_products(decor)
+        display_products([p for p in filtered_products if p['category'] == 'decor'])
 
 elif selected == "🛒 Cart":
     st.header("🛒 Shopping Cart")
@@ -280,77 +277,11 @@ elif selected == "💳 Checkout":
         st.warning("🛒 Add items to cart first!")
     else:
         st.success(f"**Order Total: ${st.session_state.total:,.2f}**")
-        st.button("✅ Complete Order", type="primary", on_click=complete_order)
+        if st.button("✅ Complete Order", type="primary"):
+            complete_order()
+            st.success("🎉 Order placed successfully! Thank you for shopping with Luxury Interiors!")
+            st.rerun()
 
 elif selected == "📊 Dashboard":
     st.header("📊 Sales Dashboard")
-    show_dashboard()
-
-# Helper Functions
-def display_products(products_list):
-    for product in products_list:
-        with st.container():
-            col1, col2, col3 = st.columns([1, 3, 1])
-            with col1:
-                st.markdown(f"### {product['image']}")
-            with col2:
-                st.markdown(f"""
-                    <div class="product-card">
-                        <h3>{product['name']}</h3>
-                        <p><strong>In Stock:</strong> {product['stock']} units</p>
-                    </div>
-                """, unsafe_allow_html=True)
-            with col3:
-                st.markdown(f"""
-                    <div class="price-tag">${product['price']:,.2f}</div>
-                """, unsafe_allow_html=True)
-            
-            if st.button(f"🛒 Add to Cart", key=f"add_{product['id']}"):
-                add_to_cart(product)
-                st.rerun()
-
-def add_to_cart(product):
-    cart_item = next((item for item in st.session_state.cart if item['id'] == product['id']), None)
-    if cart_item:
-        cart_item['quantity'] += 1
-    else:
-        st.session_state.cart.append({'id': product['id'], **product, 'quantity': 1})
-    st.session_state.total = sum(item['price'] * item['quantity'] for item in st.session_state.cart)
-    st.success(f"✅ {product['name']} added to cart!")
-
-def display_cart():
-    for i, item in enumerate(st.session_state.cart):
-        col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
-        with col1:
-            st.write(f"**{item['name']}**")
-        with col2:
-            st.write(f"Qty: {item['quantity']}")
-        with col3:
-            st.write(f"${item['price']:,.2f}")
-        with col4:
-            st.write(f"${(item['price'] * item['quantity']):,.2f}")
-            if st.button("❌", key=f"remove_{i}"):
-                st.session_state.cart.pop(i)
-                st.session_state.total = sum(item['price'] * item['quantity'] for item in st.session_state.cart)
-                st.rerun()
-
-def complete_order():
-    st.session_state.cart = []
-    st.session_state.total = 0
-    st.balloons()
-    st.success("🎉 Order placed successfully! Thank you for shopping with Luxury Interiors!")
-
-def show_dashboard():
-    df = pd.DataFrame(products)
-    fig = px.scatter(df, x='price', y='stock', size='price', 
-                    color='category', hover_name='name',
-                    title="Product Analytics")
-    st.plotly_chart(fig, use_container_width=True)
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        fig_pie = px.pie(df, names='category', values='stock')
-        st.plotly_chart(fig_pie, use_container_width=True)
-    with col2:
-        fig_bar = px.bar(df, x='category', y='price', title="Avg Price by Category")
-        st.plotly_chart(fig_bar, use_container_width=True)
+    show_dashboard(products)
